@@ -1,5 +1,5 @@
 export const BOT_TOKEN = Deno.env.get("BOT_TOKEN") || 
-  "7404781641:AAHJkEFVcNOc5_xRAZL4ZkSwNERFVRB_1mI";
+  "6627182185:AAEBRayb9vuLUbjbmwd-NwP0fssteLsDcgU";
 export const ENVS_SH_UPLOAD_URL = "https://envs.sh/";
 export const IMGBB_UPLOAD_URL = "https://api-integretion-unblocked.vercel.app/imgbb";
 export const SUBSCRIPTION_CHECK_BOT_TOKEN = BOT_TOKEN;
