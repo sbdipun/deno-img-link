@@ -8,13 +8,12 @@ interface MessageOptions {
   disable_web_page_preview?: boolean;
 }
 
-export const TelegramService = {
-  async sendMessage(
+export const TelegramService = {  async sendMessage(
     chatId: number, 
     text: string, 
     options: MessageOptions = {}
   ): Promise<Response> {
-    return fetch(`${API_URL}/sendMessage`, {
+    const response = await fetch(`${API_URL}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -24,6 +23,10 @@ export const TelegramService = {
         ...options
       }),
     });
+    if (!response.ok) {
+      console.error('Telegram API Error:', await response.text());
+    }
+    return response;
   },
 
   async sendPhoto(

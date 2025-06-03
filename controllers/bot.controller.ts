@@ -20,15 +20,29 @@ const pendingUploads = new Map<number, ImageData>();
 
 export const BotController = {
   async handleUpdate(update: any): Promise<Response> {
+    console.log("Received update:", JSON.stringify(update, null, 2));
+
     if (update.callback_query) {
+      console.log("Processing callback query:", update.callback_query.data);
       return await this.handleCallbackQuery(update.callback_query);
     }
 
-    if (!update.message) return new Response("OK");
+    if (!update.message) {
+      console.log("No message in update");
+      return new Response("OK");
+    }
 
     const { chat, from, text, photo, document } = update.message;
     const chatId = chat.id;
-    const userId = from.id;
+    const userId = from?.id;
+
+    console.log("Processing message:", {
+      chatId,
+      userId,
+      hasText: !!text,
+      hasPhoto: !!photo,
+      hasDocument: !!document
+    });
 
     try {
       if (text === "/start") {
@@ -61,7 +75,12 @@ export const BotController = {
 
       // Handle both photos and document-based images
       if (photo || (document?.mime_type?.startsWith('image/'))) {
+        console.log("Processing image message");
+        
+        // Check channel subscription
         const hasAccess = await SubscriptionService.checkSubscription(chatId);
+        console.log("Subscription check result:", hasAccess);
+        
         if (!hasAccess) {
           await TelegramService.sendMessage(
             chatId,
@@ -72,38 +91,46 @@ export const BotController = {
           return new Response("OK");
         }
 
-        let fileId: string;
-        if (photo) {
-          fileId = photo.pop().file_id;
-        } else {
+        // Get file ID from either photo or document
+        let fileId: string | undefined;
+        if (photo && photo.length > 0) {
+          fileId = photo[photo.length - 1].file_id;
+          console.log("Got photo file_id:", fileId);
+        } else if (document) {
           fileId = document.file_id;
+          console.log("Got document file_id:", fileId);
+        }
+
+        if (!fileId) {
+          console.error("No valid file_id found");
+          await TelegramService.sendMessage(chatId, "❌ Failed to process image");
+          return new Response("OK");
         }
 
         // Send message with upload options
-        const response = await TelegramService.sendMessage(
-          chatId,
-          "Choose an upload service:",
-          {
-            reply_markup: {
-              inline_keyboard: [
-                [
-                  { text: "Upload to ImgBB 🖼", callback_data: `imgbb_${fileId}` },
-                  { text: "Upload to envs.sh 📤", callback_data: `envsh_${fileId}` }
-                ]
-              ]
-            }
+        const buttons = {
+          reply_markup: {
+            inline_keyboard: [[
+              { text: "Upload to ImgBB 🖼", callback_data: `imgbb_${fileId}` },
+              { text: "Upload to envs.sh 📤", callback_data: `envsh_${fileId}` }
+            ]]
           }
-        );
+        };
 
-        const responseData = await response.json();
-        if (responseData.ok) {
-          // Store the file ID and message ID for later use
-          pendingUploads.set(chatId, {
-            fileId,
-            messageId: responseData.result.message_id
-          });
+        try {
+          console.log("Sending message with buttons", buttons);
+          const response = await TelegramService.sendMessage(
+            chatId,
+            "Choose where to upload the image:",
+            buttons
+          );
+          
+          console.log("Button message response:", await response.text());
+        } catch (error) {
+          console.error("Error sending button message:", error);
+          await TelegramService.sendMessage(chatId, "❌ Failed to process request");
         }
-
+        
         return new Response("OK");
       }
 
