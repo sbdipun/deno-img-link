@@ -23,12 +23,10 @@ export const BotController = {
     console.log("Received update:", JSON.stringify(update, null, 2));
 
     if (update.callback_query) {
-      console.log("Processing callback query:", update.callback_query.data);
       return await this.handleCallbackQuery(update.callback_query);
     }
 
     if (!update.message) {
-      console.log("No message in update");
       return new Response("OK");
     }
 
@@ -92,44 +90,39 @@ export const BotController = {
         }
 
         // Get file ID from either photo or document
-        let fileId: string | undefined;
+        let fileId: string;
         if (photo && photo.length > 0) {
           fileId = photo[photo.length - 1].file_id;
           console.log("Got photo file_id:", fileId);
         } else if (document) {
           fileId = document.file_id;
           console.log("Got document file_id:", fileId);
-        }
-
-        if (!fileId) {
-          console.error("No valid file_id found");
+        } else {
           await TelegramService.sendMessage(chatId, "❌ Failed to process image");
           return new Response("OK");
-        }        // Send message with upload options
-        try {
-          console.log("Sending message with buttons for fileId:", fileId);
-          const response = await TelegramService.sendMessage(
+        }        try {
+          // Telegram limits callback_data to 64 bytes
+          const shortFileId = fileId.slice(0, 60); // Leave room for prefix
+          await TelegramService.sendMessage(
             chatId,
             "Choose where to upload the image:",
             {
-              reply_markup: JSON.stringify({
+              reply_markup: {
                 inline_keyboard: [
                   [
                     { 
                       text: "Upload to ImgBB 🖼", 
-                      callback_data: "imgbb_" + fileId
+                      callback_data: `i${shortFileId}`
                     },
                     { 
                       text: "Upload to envs.sh 📤", 
-                      callback_data: "envsh_" + fileId
+                      callback_data: `e${shortFileId}`
                     }
                   ]
                 ]
-              })
+              }
             }
           );
-          
-          console.log("Button message response:", JSON.stringify(response));
         } catch (error) {
           console.error("Error sending button message:", error);
           await TelegramService.sendMessage(chatId, "❌ Failed to process request");
@@ -170,9 +163,11 @@ export const BotController = {
     const messageId = message.message_id;
 
     try {
-      const [service, fileId] = data.split('_');
-      let imageUrl: string | null = null;
+      const service = data.charAt(0); // 'i' for ImgBB, 'e' for envsh
+      const fileId = data.slice(1);
 
+      await TelegramService.answerCallbackQuery(id);
+      
       await TelegramService.editMessageText(
         chatId,
         messageId,
@@ -186,9 +181,10 @@ export const BotController = {
       if (!response.ok) throw new Error("Failed to download image");
       const fileContent = await response.arrayBuffer();
 
-      if (service === 'imgbb') {
+      let imageUrl: string | null = null;
+      if (service === 'i') {
         imageUrl = await ImgbbUploadService.uploadImage(fileContent);
-      } else if (service === 'envsh') {
+      } else if (service === 'e') {
         imageUrl = await ImageUploadService.uploadImage(fileContent);
       }
 
@@ -203,7 +199,7 @@ export const BotController = {
                 [{ 
                   text: "Share Link 🔗", 
                   url: `tg://msg_url?url=${encodeURIComponent(imageUrl)}`
-                }],
+                }]
               ]
             }
           }
@@ -215,11 +211,8 @@ export const BotController = {
           "❌ Failed to upload image"
         );
       }
-
-      await TelegramService.answerCallbackQuery(id);
     } catch (error) {
       console.error("Callback query error:", error);
-      await TelegramService.answerCallbackQuery(id, "⚠️ Error processing upload");
       await TelegramService.editMessageText(
         chatId,
         messageId,
