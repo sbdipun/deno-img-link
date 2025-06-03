@@ -1,0 +1,10 @@
+        .env-example
+        .github/
+        LICENSE
+        README.md
+        config/
+        controllers/
+        database/
+        main.ts
+        services/
+        types/
