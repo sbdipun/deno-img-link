@@ -105,27 +105,31 @@ export const BotController = {
           console.error("No valid file_id found");
           await TelegramService.sendMessage(chatId, "❌ Failed to process image");
           return new Response("OK");
-        }
-
-        // Send message with upload options
-        const buttons = {
-          reply_markup: {
-            inline_keyboard: [[
-              { text: "Upload to ImgBB 🖼", callback_data: `imgbb_${fileId}` },
-              { text: "Upload to envs.sh 📤", callback_data: `envsh_${fileId}` }
-            ]]
-          }
-        };
-
+        }        // Send message with upload options
         try {
-          console.log("Sending message with buttons", buttons);
+          console.log("Sending message with buttons for fileId:", fileId);
           const response = await TelegramService.sendMessage(
             chatId,
             "Choose where to upload the image:",
-            buttons
+            {
+              reply_markup: JSON.stringify({
+                inline_keyboard: [
+                  [
+                    { 
+                      text: "Upload to ImgBB 🖼", 
+                      callback_data: "imgbb_" + fileId
+                    },
+                    { 
+                      text: "Upload to envs.sh 📤", 
+                      callback_data: "envsh_" + fileId
+                    }
+                  ]
+                ]
+              })
+            }
           );
           
-          console.log("Button message response:", await response.text());
+          console.log("Button message response:", JSON.stringify(response));
         } catch (error) {
           console.error("Error sending button message:", error);
           await TelegramService.sendMessage(chatId, "❌ Failed to process request");
