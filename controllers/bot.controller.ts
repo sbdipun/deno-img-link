@@ -11,7 +11,13 @@ import {
 } from "../config/config.ts";
 
 // Store file data using short IDs as keys
+let uploadCounter = 0;
 const pendingUploads = new Map<string, { fileId: string }>();
+
+function generateShortId(): string {
+  uploadCounter = (uploadCounter + 1) % 1000;
+  return uploadCounter.toString().padStart(3, '0');
+}
 
 export const BotController = {
   async handleUpdate(update: any): Promise<Response> {
@@ -87,9 +93,9 @@ export const BotController = {
           return new Response("OK");
         }
 
-        try {
-          // Store the file ID for later use
-          pendingUploads.set(fileId, { fileId });
+        try {          // Generate a short ID and store the mapping
+          const shortId = generateShortId();
+          pendingUploads.set(shortId, { fileId });
 
           await TelegramService.sendMessage(
             chatId,
@@ -100,11 +106,11 @@ export const BotController = {
                   [
                     { 
                       text: "Upload to ImgBB 🖼", 
-                      callback_data: `i${fileId}`
+                      callback_data: `i${shortId}`
                     },
                     { 
                       text: "Upload to envs.sh 📤", 
-                      callback_data: `e${fileId}`
+                      callback_data: `e${shortId}`
                     }
                   ]
                 ]
@@ -150,11 +156,16 @@ export const BotController = {
     const chatId = message.chat.id;
     const messageId = message.message_id;
 
-    try {
-      const service = data.charAt(0); // 'i' for ImgBB, 'e' for envs
-      const fileId = data.slice(1);
+    try {      const service = data.charAt(0); // 'i' for ImgBB, 'e' for envs
+      const shortId = data.slice(1);
       
-      const uploadData = pendingUploads.get(fileId);
+      const uploadData = pendingUploads.get(shortId);
+      if (!uploadData) {
+        console.error("No upload data found for shortId:", shortId);
+        await TelegramService.answerCallbackQuery(id, "❌ Upload expired, please try again");
+        return new Response("OK");
+      }
+      const fileId = uploadData.fileId;
       if (!uploadData) {
         console.error("No upload data found for fileId:", fileId);
         await TelegramService.answerCallbackQuery(id, "❌ Upload expired, please try again");
@@ -206,7 +217,7 @@ export const BotController = {
           "❌ Failed to upload image"
         );
       }      // Clean up stored data
-      pendingUploads.delete(data.slice(1));
+      pendingUploads.delete(shortId);
     } catch (error) {
       console.error("Callback query error:", error);
       await TelegramService.editMessageText(
@@ -214,7 +225,7 @@ export const BotController = {
         messageId,
         "❌ Failed to process image"
       );
-      pendingUploads.delete(data.slice(1));
+      pendingUploads.delete(shortId);
     }
 
     return new Response("OK");
