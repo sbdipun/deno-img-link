@@ -10,13 +10,8 @@ import {
   CLEAN_USERNAME
 } from "../config/config.ts";
 
-interface ImageData {
-  fileId: string;
-  messageId: number;
-}
-
-// Store temporary image data
-const pendingUploads = new Map<number, ImageData>();
+// Store file data using short IDs as keys
+const pendingUploads = new Map<string, { fileId: string }>();
 
 export const BotController = {
   async handleUpdate(update: any): Promise<Response> {
@@ -33,14 +28,6 @@ export const BotController = {
     const { chat, from, text, photo, document } = update.message;
     const chatId = chat.id;
     const userId = from?.id;
-
-    console.log("Processing message:", {
-      chatId,
-      userId,
-      hasText: !!text,
-      hasPhoto: !!photo,
-      hasDocument: !!document
-    });
 
     try {
       if (text === "/start") {
@@ -75,7 +62,6 @@ export const BotController = {
       if (photo || (document?.mime_type?.startsWith('image/'))) {
         console.log("Processing image message");
         
-        // Check channel subscription
         const hasAccess = await SubscriptionService.checkSubscription(chatId);
         console.log("Subscription check result:", hasAccess);
         
@@ -89,7 +75,6 @@ export const BotController = {
           return new Response("OK");
         }
 
-        // Get file ID from either photo or document
         let fileId: string;
         if (photo && photo.length > 0) {
           fileId = photo[photo.length - 1].file_id;
@@ -100,9 +85,12 @@ export const BotController = {
         } else {
           await TelegramService.sendMessage(chatId, "❌ Failed to process image");
           return new Response("OK");
-        }        try {
-          // Telegram limits callback_data to 64 bytes
-          const shortFileId = fileId.slice(0, 60); // Leave room for prefix
+        }
+
+        try {
+          // Store the file ID for later use
+          pendingUploads.set(fileId, { fileId });
+
           await TelegramService.sendMessage(
             chatId,
             "Choose where to upload the image:",
@@ -112,11 +100,11 @@ export const BotController = {
                   [
                     { 
                       text: "Upload to ImgBB 🖼", 
-                      callback_data: `i${shortFileId}`
+                      callback_data: `i${fileId}`
                     },
                     { 
                       text: "Upload to envs.sh 📤", 
-                      callback_data: `e${shortFileId}`
+                      callback_data: `e${fileId}`
                     }
                   ]
                 ]
@@ -158,13 +146,20 @@ export const BotController = {
   },
 
   async handleCallbackQuery(callbackQuery: any): Promise<Response> {
-    const { id, from, data, message } = callbackQuery;
+    const { id, data, message } = callbackQuery;
     const chatId = message.chat.id;
     const messageId = message.message_id;
 
     try {
-      const service = data.charAt(0); // 'i' for ImgBB, 'e' for envsh
+      const service = data.charAt(0); // 'i' for ImgBB, 'e' for envs
       const fileId = data.slice(1);
+      
+      const uploadData = pendingUploads.get(fileId);
+      if (!uploadData) {
+        console.error("No upload data found for fileId:", fileId);
+        await TelegramService.answerCallbackQuery(id, "❌ Upload expired, please try again");
+        return new Response("OK");
+      }
 
       await TelegramService.answerCallbackQuery(id);
       
@@ -210,7 +205,8 @@ export const BotController = {
           messageId,
           "❌ Failed to upload image"
         );
-      }
+      }      // Clean up stored data
+      pendingUploads.delete(data.slice(1));
     } catch (error) {
       console.error("Callback query error:", error);
       await TelegramService.editMessageText(
@@ -218,6 +214,7 @@ export const BotController = {
         messageId,
         "❌ Failed to process image"
       );
+      pendingUploads.delete(data.slice(1));
     }
 
     return new Response("OK");
