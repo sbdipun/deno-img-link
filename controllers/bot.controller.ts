@@ -201,3 +201,4 @@ export const BotController = {
 
     return new Response("OK");
   }
+};
