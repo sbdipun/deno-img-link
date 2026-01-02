@@ -7,7 +7,7 @@ export const DEVELOPER_ID = 1164918935;
 export const WELCOME_IMAGE_URL = "https://envs.sh/HQP.jpg/IMG31052025.jpg";
 
 // Validate required variables
-const requiredVars = ["BOT_TOKEN", "CHANNEL_USERNAME"];
+const requiredVars = [];
 requiredVars.forEach((varName) => {
   if (!Deno.env.get(varName)) {
     throw new Error(`Missing required environment variable: ${varName}`);
