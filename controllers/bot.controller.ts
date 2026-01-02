@@ -45,7 +45,7 @@ export const BotController = {
               [{
                 text: "Join Channel 📢",
                 url: `https://t.me/${CLEAN_USERNAME}`
-              }],
+              }]
             ]
           }
         );
@@ -189,7 +189,7 @@ export const BotController = {
         "✨ Features:\n" +
         "- Convert images to direct links\n" +
         "- Support for photos, documents, and image URLs\n" +
-        "- Powered by ImgBB",
+        "- Powered by ImgBB"
       );
     } catch (error) {
       console.error("Handler error:", error);
