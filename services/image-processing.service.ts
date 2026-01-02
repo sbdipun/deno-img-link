@@ -1,5 +1,5 @@
 import { TelegramService } from "./telegram.service.ts";
-import { ImageUploadService } from "./image-upload.service.ts";
+import { ImgbbUploadService } from "./imgbb-upload.service.ts";
 
 export const ImageProcessingService = {
   async processImage(fileId: string): Promise<string> {
@@ -11,7 +11,7 @@ export const ImageProcessingService = {
       if (!response.ok) throw new Error("Failed to download image");
       
       const fileContent = await response.arrayBuffer();
-      const imageUrl = await ImageUploadService.uploadImage(fileContent);
+      const imageUrl = await ImgbbUploadService.uploadImage(fileContent);
 
       return imageUrl || "Error uploading image to hosting service";
     } catch (error) {
