@@ -6,12 +6,20 @@ interface ImgBBResponse {
 }
 
 export const ImgbbUploadService = {
-  async uploadImage(fileContent: ArrayBuffer): Promise<string | null> {
+  async uploadImage(fileContent?: ArrayBuffer, imageUrl?: string): Promise<string | null> {
     try {
       const formData = new FormData();
-      const fileName = `${crypto.randomUUID()}.jpg`;
-      
-      formData.append("file", new Blob([fileContent], { type: "image/jpeg" }), fileName);
+
+      if (imageUrl) {
+        // Upload via remote URL
+        formData.append("url", imageUrl);
+      } else if (fileContent) {
+        // Upload via local file
+        const fileName = `${crypto.randomUUID()}.jpg`;
+        formData.append("file", new Blob([fileContent], { type: "image/jpeg" }), fileName);
+      } else {
+        throw new Error("Either fileContent or imageUrl must be provided.");
+      }
 
       const response = await fetch(IMGBB_UPLOAD_URL, {
         method: "POST",

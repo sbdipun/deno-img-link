@@ -9,6 +9,16 @@ import {
   CLEAN_USERNAME
 } from "../config/config.ts";
 
+function isValidImageUrl(url: string): boolean {
+  try {
+    const parsedUrl = new URL(url);
+    return ['http:', 'https:'].includes(parsedUrl.protocol) && 
+           /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(parsedUrl.pathname);
+  } catch {
+    return false;
+  }
+}
+
 export const BotController = {
   async handleUpdate(update: any): Promise<Response> {
     console.log("Received update:", JSON.stringify(update, null, 2));
@@ -47,6 +57,54 @@ export const BotController = {
           ? `Total users: ${(await UserRepository.getAllUsers()).length}`
           : "📊 Database not configured";
         await TelegramService.sendMessage(chatId, responseText);
+        return new Response("OK");
+      }
+
+      // Handle image URLs in text messages
+      if (text && isValidImageUrl(text.trim())) {
+        console.log("Processing image URL:", text.trim());
+        
+        const hasAccess = await SubscriptionService.checkSubscription(chatId);
+        console.log("Subscription check result:", hasAccess);
+        
+        if (!hasAccess) {
+          await TelegramService.sendMessage(
+            chatId,
+            `Join our channel to get started\n\n` +
+            `<a href="https://t.me/${CLEAN_USERNAME}">👉 Click here to join</a>`,
+            { disable_web_page_preview: true }
+          );
+          return new Response("OK");
+        }
+
+        try {
+          await TelegramService.sendMessage(chatId, "⏳ Uploading image to ImgBB...");
+
+          const imageUrl = await ImgbbUploadService.uploadImage(undefined, text.trim());
+
+          if (imageUrl) {
+            await TelegramService.sendMessage(
+              chatId,
+              `✅ Upload successful!\n\n${imageUrl}`,
+              {
+                reply_markup: {
+                  inline_keyboard: [
+                    [{ 
+                      text: "Share Link 🔗", 
+                      url: `tg://msg_url?url=${encodeURIComponent(imageUrl)}`
+                    }]
+                  ]
+                }
+              }
+            );
+          } else {
+            await TelegramService.sendMessage(chatId, "❌ Failed to upload image");
+          }
+        } catch (error) {
+          console.error("Error uploading image from URL:", error);
+          await TelegramService.sendMessage(chatId, "❌ Failed to process image URL");
+        }
+        
         return new Response("OK");
       }
 
@@ -127,9 +185,10 @@ export const BotController = {
 
       await TelegramService.sendMessage(
         chatId,
-        "📸 Send me an image (as photo or file) to get started!\n\n" +
+        "📸 Send me an image (as photo or file) or an image URL to get started!\n\n" +
         "✨ Features:\n" +
         "- Convert images to direct links\n" +
+        "- Support for photos, documents, and image URLs\n" +
         "- Powered by ImgBB",
       );
     } catch (error) {
